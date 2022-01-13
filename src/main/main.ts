@@ -26,11 +26,19 @@ export default class AppUpdater {
 }
 
 let mainWindow: BrowserWindow | null = null;
+const allWindows: Record<string, BrowserWindow> = {};
 
 ipcMain.on('ipc-example', async (event, arg) => {
   const msgTemplate = (pingPong: string) => `IPC test: ${pingPong}`;
   console.log(msgTemplate(arg));
   event.reply('ipc-example', msgTemplate('pong'));
+});
+
+// 打开新窗口
+ipcMain.on('open-window', async (_event, arg) => {
+  const { hash, options } = arg;
+  // eslint-disable-next-line @typescript-eslint/no-use-before-define
+  await openWindow(hash, options);
 });
 
 if (process.env.NODE_ENV === 'production') {
@@ -42,7 +50,9 @@ const isDevelopment =
   process.env.NODE_ENV === 'development' || process.env.DEBUG_PROD === 'true';
 
 if (isDevelopment) {
-  require('electron-debug')();
+  // require('electron-debug')();
+  // 默认关掉 devtools，command+shift+i 切换打开关闭
+  require('electron-debug')({ showDevTools: false });
 }
 
 const installExtensions = async () => {
@@ -56,6 +66,57 @@ const installExtensions = async () => {
       forceDownload
     )
     .catch(console.log);
+};
+
+const openWindow = async (hash: string, options: Record<any, any>) => {
+  if (isDevelopment) {
+    await installExtensions();
+  }
+
+  const RESOURCES_PATH = app.isPackaged
+    ? path.join(process.resourcesPath, 'assets')
+    : path.join(__dirname, '../../assets');
+
+  const getAssetPath = (...paths: string[]): string => {
+    return path.join(RESOURCES_PATH, ...paths);
+  };
+
+  if (allWindows?.[hash]) {
+    allWindows[hash].show();
+  } else {
+    const focusedWindow = BrowserWindow.getFocusedWindow() as BrowserWindow;
+    const [x, y] = focusedWindow.getPosition();
+    const w = new BrowserWindow({
+      show: false,
+      width: 1024,
+      height: 728,
+      x: x + 50,
+      y: y + 50,
+      icon: getAssetPath('icon.png'),
+      webPreferences: {
+        preload: path.join(__dirname, 'preload.js'),
+      },
+      ...options,
+    });
+
+    w.loadURL(resolveHtmlPath('index.html', `/${hash}`));
+
+    w.on('closed', () => {
+      delete allWindows[hash];
+    });
+
+    w.on('ready-to-show', () => {
+      if (!w) {
+        throw new Error('"window" is not defined');
+      }
+      if (process.env.START_MINIMIZED) {
+        w.minimize();
+      } else {
+        w.show();
+      }
+    });
+    allWindows[hash] = w;
+  }
 };
 
 const createWindow = async () => {

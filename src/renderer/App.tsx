@@ -1,4 +1,4 @@
-import { MemoryRouter as Router, Routes, Route } from 'react-router-dom';
+import { HashRouter as Router, Route, Routes } from 'react-router-dom';
 import { ConfigProvider } from 'antd';
 // 由于 antd 组件的默认文案是英文，所以需要修改为中文
 import zhCN from 'antd/lib/locale/zh_CN';
@@ -6,19 +6,40 @@ import moment from 'moment';
 import 'moment/locale/zh-cn';
 
 import Home from './pages/home';
+import { MenuActionType, menuConfig } from './types/home';
 
 import 'antd/dist/antd.css';
 import './App.css';
 
 moment.locale('zh-cn');
 
+declare global {
+  interface Window {
+    electron: {
+      store: {
+        get: (key: string) => any;
+        set: (key: string, val: any) => void;
+        // any other methods you've defined...
+      };
+      ipcRenderer: {
+        send: (key: string, value: any) => void;
+        openWindow: (hash: string, winOptions?: any) => void;
+      };
+    };
+  }
+}
+
+const otherRoutes = menuConfig
+  .filter((m) => m.type === MenuActionType.Popup)
+  .map((r) => <Route path={r.key} element={<r.component />} />);
+
+const allRoutes = [<Route path="/" element={<Home />} />].concat(otherRoutes);
+
 export default function App() {
   return (
     <ConfigProvider locale={zhCN}>
       <Router>
-        <Routes>
-          <Route path="/" element={<Home />} />
-        </Routes>
+        <Routes>{allRoutes}</Routes>
       </Router>
     </ConfigProvider>
   );

@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { Menu, Tabs, message } from 'antd';
+import React, { useState } from 'react';
+import { Menu, Tabs } from 'antd';
 
 import { MenuActionType, menuConfig, MenuItemConfig } from '../../types/home';
 
@@ -22,6 +22,13 @@ const getAllPages = (config: MenuItemConfig[]): MenuItemConfig[] => {
 };
 
 const pages = getAllPages(menuConfig);
+
+// 过滤所有弹窗
+const getAllWindows = (config: MenuItemConfig[]): MenuItemConfig[] => {
+  return config.filter((c) => c.type === MenuActionType.Popup);
+};
+
+const popups = getAllWindows(menuConfig);
 
 const Home = () => {
   const [activeKey, setActiveKey] = useState<string>('');
@@ -55,19 +62,23 @@ const Home = () => {
     setPanes(newPanes);
   };
 
-  const onEdit = (targetKey: string, action: 'remove' | 'add') => {
+  const onEdit = (
+    targetKey: React.MouseEvent | React.KeyboardEvent | string,
+    action: 'remove' | 'add'
+  ) => {
     if (action === 'remove') {
-      remove(targetKey);
+      remove(targetKey as string);
     }
   };
 
   const handleClickMenu = (e: any) => {
     const page = pages.find((item) => item.key === e.key);
-    if (page?.type === MenuActionType.Page) {
+    const popup = popups.find((item) => item.key === e.key);
+    if (page) {
       setActiveKey(e.key);
       add(page);
-    } else {
-      message.info('弹窗正在编写中……');
+    } else if (popup) {
+      window.electron.ipcRenderer.openWindow(e.key, popup.winOptions);
     }
   };
 

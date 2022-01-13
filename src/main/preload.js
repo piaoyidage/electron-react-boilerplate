@@ -12,6 +12,12 @@ contextBridge.exposeInMainWorld('electron', {
         ipcRenderer.on(channel, (event, ...args) => func(...args));
       }
     },
+    openWindow(hash, options) {
+      ipcRenderer.send('open-window', {
+        hash,
+        options,
+      });
+    },
     once(channel, func) {
       const validChannels = ['ipc-example'];
       if (validChannels.includes(channel)) {
