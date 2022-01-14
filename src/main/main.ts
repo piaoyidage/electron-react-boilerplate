@@ -14,6 +14,7 @@ import path from 'path';
 import { app, BrowserWindow, shell, ipcMain } from 'electron';
 import { autoUpdater } from 'electron-updater';
 import log from 'electron-log';
+import Store from 'electron-store';
 import MenuBuilder from './menu';
 import { resolveHtmlPath } from './util';
 
@@ -25,8 +26,24 @@ export default class AppUpdater {
   }
 }
 
+// 主窗口
 let mainWindow: BrowserWindow | null = null;
-const allWindows: Record<string, BrowserWindow> = {};
+// 登录窗口
+let loginWindow: BrowserWindow | null = null;
+// 其他窗口
+const otherWindows: Record<string, BrowserWindow> = {};
+
+// 全局数据
+const store = new Store();
+// store.delete('login');
+
+// IPC listener
+ipcMain.on('electron-store-get', async (event, val) => {
+  event.returnValue = store.get(val);
+});
+ipcMain.on('electron-store-set', async (_event, key, val) => {
+  store.set(key, val);
+});
 
 ipcMain.on('ipc-example', async (event, arg) => {
   const msgTemplate = (pingPong: string) => `IPC test: ${pingPong}`;
@@ -39,6 +56,14 @@ ipcMain.on('open-window', async (_event, arg) => {
   const { hash, options } = arg;
   // eslint-disable-next-line @typescript-eslint/no-use-before-define
   await openWindow(hash, options);
+});
+
+// 登录成功
+ipcMain.on('login-success', async (_event) => {
+  store.set('login', true);
+  loginWindow?.hide();
+  // eslint-disable-next-line @typescript-eslint/no-use-before-define
+  createMainWindow();
 });
 
 if (process.env.NODE_ENV === 'production') {
@@ -81,8 +106,8 @@ const openWindow = async (hash: string, options: Record<any, any>) => {
     return path.join(RESOURCES_PATH, ...paths);
   };
 
-  if (allWindows?.[hash]) {
-    allWindows[hash].show();
+  if (otherWindows?.[hash]) {
+    otherWindows[hash].show();
   } else {
     const focusedWindow = BrowserWindow.getFocusedWindow() as BrowserWindow;
     const [x, y] = focusedWindow.getPosition();
@@ -102,7 +127,7 @@ const openWindow = async (hash: string, options: Record<any, any>) => {
     w.loadURL(resolveHtmlPath('index.html', `/${hash}`));
 
     w.on('closed', () => {
-      delete allWindows[hash];
+      delete otherWindows[hash];
     });
 
     w.on('ready-to-show', () => {
@@ -115,11 +140,43 @@ const openWindow = async (hash: string, options: Record<any, any>) => {
         w.show();
       }
     });
-    allWindows[hash] = w;
+    otherWindows[hash] = w;
   }
 };
 
-const createWindow = async () => {
+const createLoginWindow = async () => {
+  if (isDevelopment) {
+    await installExtensions();
+  }
+  loginWindow = new BrowserWindow({
+    show: false,
+    width: 600,
+    height: 600,
+    center: true,
+    webPreferences: {
+      preload: path.join(__dirname, 'preload.js'),
+    },
+  });
+
+  loginWindow.loadURL(resolveHtmlPath('index.html', '/login'));
+
+  loginWindow.on('ready-to-show', () => {
+    if (!loginWindow) {
+      throw new Error('"loginWindow" is not defined');
+    }
+    if (process.env.START_MINIMIZED) {
+      loginWindow.minimize();
+    } else {
+      loginWindow.show();
+    }
+  });
+
+  loginWindow.on('closed', () => {
+    loginWindow = null;
+  });
+};
+
+const createMainWindow = async () => {
   if (isDevelopment) {
     await installExtensions();
   }
@@ -188,11 +245,20 @@ app.on('window-all-closed', () => {
 app
   .whenReady()
   .then(() => {
-    createWindow();
+    console.log(store.get('login'), 'init');
+    if (store.get('login')) {
+      createMainWindow();
+    } else {
+      createLoginWindow();
+    }
     app.on('activate', () => {
       // On macOS it's common to re-create a window in the app when the
       // dock icon is clicked and there are no other windows open.
-      if (mainWindow === null) createWindow();
+      if (mainWindow === null && store.get('login')) {
+        createMainWindow();
+      } else {
+        createLoginWindow();
+      }
     });
   })
   .catch(console.log);

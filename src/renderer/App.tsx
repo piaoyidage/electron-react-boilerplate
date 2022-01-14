@@ -6,6 +6,7 @@ import moment from 'moment';
 import 'moment/locale/zh-cn';
 
 import Home from './pages/home';
+import Login from './pages/login';
 import { MenuActionType, menuConfig } from './types/home';
 
 import 'antd/dist/antd.css';
@@ -24,6 +25,7 @@ declare global {
       ipcRenderer: {
         send: (key: string, value: any) => void;
         openWindow: (hash: string, winOptions?: any) => void;
+        loginSuccess: () => void;
       };
     };
   }
@@ -33,7 +35,11 @@ const otherRoutes = menuConfig
   .filter((m) => m.type === MenuActionType.Popup)
   .map((r) => <Route path={r.key} element={<r.component />} />);
 
-const allRoutes = [<Route path="/" element={<Home />} />].concat(otherRoutes);
+const homeRoute = <Route path="/" element={<Home />} />;
+
+const loginRoute = <Route path="login" element={<Login />} />;
+
+const allRoutes = [homeRoute, loginRoute].concat(otherRoutes);
 
 export default function App() {
   return (
