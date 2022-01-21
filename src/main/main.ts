@@ -48,11 +48,10 @@ app.on('window-all-closed', () => {
     app.quit();
   }
 });
-console.log(app.getAppPath(), 'app path3');
+
 app
   .whenReady()
   .then(() => {
-    console.log(store.get('login'), 'init');
     if (store.get('login')) {
       createMainWindow();
     } else {
